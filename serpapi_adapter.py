@@ -1,0 +1,143 @@
+"""Small, self-contained SerpApi travel adapter for Atlas."""
+from __future__ import annotations
+
+import asyncio
+import os
+import time
+from dataclasses import dataclass
+from datetime import date, timedelta
+from typing import Any
+
+import httpx
+
+SERPAPI_ENDPOINT = "https://serpapi.com/search.json"
+AIRPORT_ALIASES = {
+    "mumbai": "BOM", "bombay": "BOM", "delhi": "DEL", "new delhi": "DEL",
+    "bangalore": "BLR", "bengaluru": "BLR", "chennai": "MAA", "kolkata": "CCU",
+    "hyderabad": "HYD", "dubai": "DXB", "london": "LHR", "paris": "CDG",
+    "new york": "JFK", "singapore": "SIN", "tokyo": "HND", "bangkok": "BKK",
+    "sydney": "SYD", "toronto": "YYZ", "rome": "FCO", "amsterdam": "AMS",
+}
+
+
+class SerpApiTravelError(RuntimeError):
+    pass
+
+
+def airport_id(value: str) -> str:
+    cleaned = " ".join(value.split()).strip()
+    if len(cleaned) == 3 and cleaned.isalpha():
+        return cleaned.upper()
+    code = AIRPORT_ALIASES.get(cleaned.casefold())
+    if code:
+        return code
+    raise SerpApiTravelError(
+        f'Use a 3-letter airport code for "{cleaned}" (for example BOM or DXB).'
+    )
+
+
+def _price(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return f"USD {value:,.0f}"
+    return str(value or "Price unavailable")
+
+
+@dataclass
+class _CacheEntry:
+    expires_at: float
+    value: tuple[list[dict[str, Any]], list[dict[str, Any]]]
+
+
+class SerpApiTravelClient:
+    _cache: dict[str, _CacheEntry] = {}
+    _lock = asyncio.Lock()
+
+    def __init__(self, api_key: str | None = None, timeout_seconds: float = 18) -> None:
+        self.api_key = api_key or os.getenv("SERPAPI_API_KEY", "")
+        self.timeout_seconds = timeout_seconds
+        self.cache_seconds = int(os.getenv("ATLAS_SEARCH_CACHE_SECONDS", "600"))
+
+    async def _get(self, params: dict[str, Any]) -> dict[str, Any]:
+        if not self.api_key:
+            raise SerpApiTravelError("Live search is not configured. Add SERPAPI_API_KEY to .env.")
+        params = {**params, "api_key": self.api_key}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                response = await client.get(SERPAPI_ENDPOINT, params=params)
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise SerpApiTravelError("The travel provider is temporarily unavailable.") from exc
+        if payload.get("error"):
+            raise SerpApiTravelError(str(payload["error"]))
+        return payload
+
+    async def search(
+        self, *, origin: str, destination: str, departure_date: date, duration_days: int
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        departure = airport_id(origin)
+        arrival = airport_id(destination)
+        cache_key = f"{departure}:{arrival}:{departure_date}:{duration_days}"
+        cached = self._cache.get(cache_key)
+        if cached and cached.expires_at > time.monotonic():
+            return cached.value
+
+        checkout = departure_date + timedelta(days=duration_days)
+        flights_payload, hotels_payload = await asyncio.gather(
+            self._get({
+                "engine": "google_flights", "departure_id": departure,
+                "arrival_id": arrival, "outbound_date": departure_date.isoformat(),
+                "type": "2", "currency": "USD", "hl": "en",
+            }),
+            self._get({
+                "engine": "google_hotels", "q": destination,
+                "check_in_date": departure_date.isoformat(),
+                "check_out_date": checkout.isoformat(), "currency": "USD",
+                "adults": "2", "hl": "en",
+            }),
+        )
+        value = (self._flights(flights_payload), self._hotels(hotels_payload))
+        async with self._lock:
+            self._cache[cache_key] = _CacheEntry(time.monotonic() + self.cache_seconds, value)
+            if len(self._cache) > 64:
+                self._cache = {
+                    key: item for key, item in self._cache.items()
+                    if item.expires_at > time.monotonic()
+                }
+        return value
+
+    @staticmethod
+    def _flights(payload: dict[str, Any]) -> list[dict[str, Any]]:
+        groups = [*payload.get("best_flights", []), *payload.get("other_flights", [])][:8]
+        results: list[dict[str, Any]] = []
+        for index, group in enumerate(groups):
+            legs = group.get("flights") or []
+            first, last = (legs[0] if legs else {}), (legs[-1] if legs else {})
+            airline = first.get("airline") or "Flight option"
+            results.append({
+                "id": f"flight-{index}",
+                "kind": "flight",
+                "label": airline,
+                "detail": f"{first.get('departure_airport', {}).get('time', 'Time TBA')} → {last.get('arrival_airport', {}).get('time', 'Time TBA')} · {len(legs)-1 if legs else 0} stop(s)",
+                "price": _price(group.get("price")),
+                "duration": f"{group.get('total_duration', '—')} min",
+                "image": first.get("airline_logo"),
+            })
+        return results
+
+    @staticmethod
+    def _hotels(payload: dict[str, Any]) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for index, item in enumerate((payload.get("properties") or [])[:8]):
+            rate = item.get("rate_per_night") or {}
+            image = next(iter(item.get("images") or []), {}).get("thumbnail")
+            results.append({
+                "id": f"hotel-{index}",
+                "kind": "hotel",
+                "label": item.get("name") or "Stay option",
+                "detail": f"{item.get('overall_rating', 'New')} rating · {item.get('type', 'Property')}",
+                "price": rate.get("lowest") or _price(rate.get("extracted_lowest")),
+                "duration": f"{item.get('reviews', 0)} reviews",
+                "image": image,
+            })
+        return results
