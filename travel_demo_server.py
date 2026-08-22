@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os, time
 from collections import defaultdict, deque
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlencode
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from serpapi_adapter import SerpApiTravelClient, SerpApiTravelError
 
 ROOT = Path(__file__).resolve().parent
@@ -30,12 +30,24 @@ class SearchRequest(BaseModel):
     travel_class: Literal[1, 2, 3, 4] = 1
     stops: Literal[0, 1, 2, 3] = 0
     currency: Literal["USD", "INR", "EUR", "GBP", "AED", "SGD", "JPY"] = "USD"
+    trip_type: Literal["one_way", "round_trip"] = "one_way"
+    return_date: date | None = None
+    flexible_days: int = Field(default=0, ge=0, le=3)
     @field_validator("origin", "destination")
     @classmethod
     def normalise_place(cls, value: str) -> str:
         value = " ".join(value.split())
         if not value: raise ValueError("place must not be blank")
         return value
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.trip_type == "round_trip" and self.return_date is None:
+            raise ValueError("return_date is required for a round trip")
+        if self.return_date and self.return_date <= self.departure_date:
+            raise ValueError("return_date must be after departure_date")
+        if self.trip_type == "one_way" and self.return_date is not None:
+            raise ValueError("return_date is only valid for a round trip")
+        return self
 
 class HandoffRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -63,10 +75,19 @@ def destination_brief(destination: str) -> dict[str, str]:
     }
     return briefs.get(destination.casefold(), {"accent":"ocean","timezone":"Check local time","currency":"Check local currency","tip":"Verify entry rules, weather and local transport before departure."})
 
+def nearby_dates(departure: date, radius: int) -> list[str]:
+    today = date.today()
+    return [
+        (departure + timedelta(days=offset)).isoformat()
+        for offset in range(-radius, radius + 1)
+        if departure + timedelta(days=offset) >= today
+    ]
+
 def _results(body: SearchRequest, flights: list[dict[str, Any]], hotels: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "kind":"travel_results","schema_version":"travel_results.v2",
-        "trip":{"title":f"{body.duration_days}-night trip to {body.destination}","origin":body.origin,"destination":body.destination,"date_label":body.departure_date.isoformat(),"duration_days":body.duration_days,"adults":body.adults,"children":body.children,"travel_class":body.travel_class,"stops":body.stops,"currency":body.currency},
+        "trip":{"title":f"{body.duration_days}-night trip to {body.destination}","origin":body.origin,"destination":body.destination,"date_label":body.departure_date.isoformat(),"return_date":body.return_date.isoformat() if body.return_date else None,"trip_type":body.trip_type,"flexible_days":body.flexible_days,"duration_days":body.duration_days,"adults":body.adults,"children":body.children,"travel_class":body.travel_class,"stops":body.stops,"currency":body.currency},
+        "date_options":[body.departure_date.isoformat()] if body.flexible_days == 0 else nearby_dates(body.departure_date, body.flexible_days),
         "destination":destination_brief(body.destination),
         "timeline":[{"title":"Discover","detail":"Live flight and stay snapshots"},{"title":"Compare","detail":"Shortlist the strongest options"},{"title":"Organize","detail":"Build the days around your choices"},{"title":"Prepare","detail":"Budget, packing and transfers"}],
         "option_groups":[{"id":"flights","title":"Outbound flights","subtitle":"Current Google Flights snapshots","options":flights},{"id":"stays","title":"Stays","subtitle":"Current Google Hotels snapshots","options":hotels}],
@@ -87,7 +108,7 @@ async def search(body: SearchRequest, request: Request) -> dict[str, Any]:
     _rate_limit(request)
     if body.departure_date < date.today(): raise HTTPException(422, "Choose a future departure date.")
     try:
-        flights, hotels = await SerpApiTravelClient().search(origin=body.origin,destination=body.destination,departure_date=body.departure_date,duration_days=body.duration_days,adults=body.adults,children=body.children,travel_class=body.travel_class,stops=body.stops,currency=body.currency)
+        flights, hotels = await SerpApiTravelClient().search(origin=body.origin,destination=body.destination,departure_date=body.departure_date,duration_days=body.duration_days,adults=body.adults,children=body.children,travel_class=body.travel_class,stops=body.stops,currency=body.currency,trip_type=body.trip_type,return_date=body.return_date)
     except SerpApiTravelError as exc:
         raise HTTPException(503, str(exc)) from exc
     return _results(body, flights, hotels)
