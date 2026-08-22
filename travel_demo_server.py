@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlencode
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from serpapi_adapter import SerpApiTravelClient, SerpApiTravelError
+from serpapi_adapter import AIRPORT_ALIASES, SerpApiTravelClient, SerpApiTravelError
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env", override=False)
@@ -103,6 +103,16 @@ async def workspace() -> FileResponse:
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status":"ok","service":"atlas"}
+@app.get("/api/airports")
+async def airports(q: str = Query(min_length=2, max_length=50)) -> dict[str, list[dict[str, str]]]:
+    term = " ".join(q.split()).casefold()
+    matches = [
+        {"city": city.title(), "code": code, "label": f"{city.title()} · {code}"}
+        for city, code in AIRPORT_ALIASES.items()
+        if term in city.casefold() or term in code.casefold()
+    ]
+    unique = list({item["code"]: item for item in matches}.values())
+    return {"airports": unique[:8]}
 @app.post("/api/search")
 async def search(body: SearchRequest, request: Request) -> dict[str, Any]:
     _rate_limit(request)
