@@ -25,6 +25,13 @@ Atlas does **not** reserve inventory, guarantee prices, process payments or crea
 
 There is no import from Hushh and no dependency on a parent checkout.
 
+Workspace state uses schema version 3. Atlas automatically migrates the earlier v2
+workspace key when it is first opened after an upgrade.
+
+Search controls currently include adults, children, cabin class, maximum stops
+and display currency. These values are validated on the server before being sent
+to SerpApi.
+
 ## Run locally
 
 1. Create and activate a virtual environment:
@@ -65,7 +72,7 @@ GitHub Actions runs tests and Python compilation on pushes and pull requests.
 ## Next product work
 
 - Expand airport resolution beyond the starter city aliases.
-- Add traveller, cabin, currency and flexible-date controls.
+- Add round-trip and flexible-date discovery.
 - Add versioned migration for future local workspace schemas.
 - Add official supplier integrations only after product, legal and support ownership is decided.
 - Keep deeper Hushh integration paused until this standalone architecture is validated.
