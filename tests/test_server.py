@@ -12,3 +12,9 @@ def test_handoff_requires_confirmation():
 def test_handoff_is_allowlisted():
     r=client.post("/api/handoff",json={"provider":"google_hotels","origin":"BOM","destination":"Dubai","departure_date":(date.today()+timedelta(days=30)).isoformat(),"confirmed":True})
     assert r.status_code==200 and r.json()["url"].startswith("https://www.google.com/travel/hotels?")
+def test_invalid_passenger_count_is_rejected_before_provider_call():
+    r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":(date.today()+timedelta(days=30)).isoformat(),"duration_days":3,"adults":0})
+    assert r.status_code==422
+def test_invalid_currency_is_rejected_before_provider_call():
+    r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":(date.today()+timedelta(days=30)).isoformat(),"duration_days":3,"currency":"XYZ"})
+    assert r.status_code==422
