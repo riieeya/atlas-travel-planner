@@ -17,6 +17,21 @@ AIRPORT_ALIASES = {
     "hyderabad": "HYD", "dubai": "DXB", "london": "LHR", "paris": "CDG",
     "new york": "JFK", "singapore": "SIN", "tokyo": "HND", "bangkok": "BKK",
     "sydney": "SYD", "toronto": "YYZ", "rome": "FCO", "amsterdam": "AMS",
+    "ahmedabad": "AMD", "pune": "PNQ", "goa": "GOI", "kochi": "COK",
+    "cochin": "COK", "jaipur": "JAI", "lucknow": "LKO", "chandigarh": "IXC",
+    "guwahati": "GAU", "bhubaneswar": "BBI", "indore": "IDR", "nagpur": "NAG",
+    "newark": "EWR", "los angeles": "LAX", "san francisco": "SFO",
+    "chicago": "ORD", "miami": "MIA", "boston": "BOS", "seattle": "SEA",
+    "washington": "IAD", "vancouver": "YVR", "montreal": "YUL",
+    "barcelona": "BCN", "madrid": "MAD", "lisbon": "LIS", "berlin": "BER",
+    "munich": "MUC", "frankfurt": "FRA", "zurich": "ZRH", "vienna": "VIE",
+    "prague": "PRG", "athens": "ATH", "istanbul": "IST", "doha": "DOH",
+    "abu dhabi": "AUH", "riyadh": "RUH", "jeddah": "JED", "muscat": "MCT",
+    "hong kong": "HKG", "seoul": "ICN", "osaka": "KIX", "kuala lumpur": "KUL",
+    "bali": "DPS", "jakarta": "CGK", "manila": "MNL", "hanoi": "HAN",
+    "ho chi minh city": "SGN", "melbourne": "MEL", "auckland": "AKL",
+    "cairo": "CAI", "nairobi": "NBO", "cape town": "CPT", "johannesburg": "JNB",
+    "maldives": "MLE", "mauritius": "MRU", "colombo": "CMB", "kathmandu": "KTM",
 }
 
 
@@ -128,6 +143,15 @@ class SerpApiTravelClient:
                 "detail": f"{first.get('departure_airport', {}).get('time', 'Time TBA')} → {last.get('arrival_airport', {}).get('time', 'Time TBA')} · {len(legs)-1 if legs else 0} stop(s)",
                 "price": _price(group.get("price"), currency),
                 "duration": f"{group.get('total_duration', '—')} min",
+                "duration_minutes": group.get("total_duration"),
+                "stops": max(0, len(legs) - 1),
+                "departure_time": first.get("departure_airport", {}).get("time"),
+                "arrival_time": last.get("arrival_airport", {}).get("time"),
+                "departure_airport": first.get("departure_airport", {}).get("id"),
+                "arrival_airport": last.get("arrival_airport", {}).get("id"),
+                "layovers": [{"airport": stop.get("id"), "name": stop.get("name"), "duration_minutes": stop.get("duration")} for stop in group.get("layovers", [])],
+                "emissions_grams": group.get("carbon_emissions", {}).get("this_flight"),
+                "price_value": group.get("price"),
                 "image": first.get("airline_logo"),
             })
         return results
@@ -146,6 +170,9 @@ class SerpApiTravelClient:
                 "detail": f"{item.get('overall_rating', 'New')} rating · {item.get('type', 'Property')}",
                 "price": rate.get("lowest") or _price(rate.get("extracted_lowest"), currency),
                 "duration": f"{item.get('reviews', 0)} reviews",
+                "price_value": rate.get("extracted_lowest"),
+                "rating": item.get("overall_rating"),
+                "reviews": item.get("reviews", 0),
                 "image": image,
             })
         return results
