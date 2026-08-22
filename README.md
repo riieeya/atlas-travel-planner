@@ -1,42 +1,71 @@
 # Atlas Travel Planner
 
-Atlas is a local-first travel-planning prototype. It searches flight and hotel snapshots, then lets you keep an itinerary, manual budget, packing list, and saved plans in the browser.
+Atlas is a standalone, local-first travel-planning workspace. It discovers flight and hotel snapshots through SerpApi, then keeps comparison, shortlists, itinerary, budget, packing and trip readiness in the browser.
 
-It does not make reservations, process payments, create accounts, or store travel plans on a server.
+Atlas does **not** reserve inventory, guarantee prices, process payments or create accounts.
 
-## Current capabilities
+## Product workflow
 
-- Flight and hotel discovery through SerpApi's Google travel search surfaces
-- Consent prompt before a live search
-- Day-by-day itinerary board
-- Local-browser budget and packing checklist
-- Landing page and planner workspace
+1. Discover — enter the route and dates after an informed disclosure.
+2. Compare — review normalized flight and stay cards.
+3. Shortlist — keep promising candidates locally.
+4. Itinerary — build the trip day by day.
+5. Prepare — estimate spending and complete packing.
+6. Ready — review progress and deliberately continue to an allowlisted provider.
+
+## Architecture
+
+- `travel_demo_server.py` — standalone FastAPI app, validation, rate limiting and provider handoffs.
+- `serpapi_adapter.py` — Atlas-owned async adapter with normalized results and a short cache.
+- `landing.html` and `index.html` — semantic page structure.
+- `assets/styles.css` — shared design system and workspace UI.
+- `assets/landing.css` — landing-page composition.
+- `assets/app.js` — hash routing, local persistence and interactions.
+- `tests/` — backend contract and security-boundary tests.
+
+There is no import from Hushh and no dependency on a parent checkout.
 
 ## Run locally
 
-This first version currently reuses the Hushh travel search adapter from the parent `hushh-research` checkout. Keep this folder next to `consent-protocol` until the adapter is extracted.
+1. Create and activate a virtual environment:
 
-1. In the parent `consent-protocol/.env`, set:
+       py -m venv .venv
+       .\.venv\Scripts\Activate.ps1
 
-   ```env
-   SERPAPI_API_KEY=your_key
-   HUSHH_TRAVEL_SERPAPI_ENABLED=true
-   ```
+2. Install dependencies:
 
-2. Start the app from this directory:
+       pip install -r requirements-dev.txt
 
-   ```powershell
-   ..\consent-protocol\.venv\Scripts\python.exe -m uvicorn travel_demo_server:app --host 127.0.0.1 --port 3001
-   ```
+3. Copy the environment template:
 
-3. Open `http://127.0.0.1:3001`.
+       Copy-Item .env.example .env
 
-## Data and privacy
+4. Put your private SerpApi key in `.env`. Never commit that file.
 
-- Only the trip fields entered in the form are sent to SerpApi when the search checkbox is confirmed.
-- Saved itinerary, budget, and checklist data stays in the browser's local storage.
-- Search results are snapshots only; availability and prices can change.
+5. Start Atlas:
 
-## Roadmap
+       uvicorn travel_demo_server:app --host 127.0.0.1 --port 3001 --reload
 
-The next extraction will make the SerpApi adapter and environment configuration self-contained so Atlas can run from this repository alone.
+6. Open `http://127.0.0.1:3001`.
+
+## Tests
+
+    pytest -q
+
+GitHub Actions runs tests and Python compilation on pushes and pull requests.
+
+## Privacy and provider boundary
+
+- Only submitted route and date fields go to SerpApi during live search.
+- Planning state is stored in browser local storage.
+- The server accepts a typed provider identifier, never an arbitrary redirect URL.
+- Provider handoffs use fixed Google Travel hosts and require explicit confirmation.
+- Prices and availability must be rechecked with the provider.
+
+## Next product work
+
+- Expand airport resolution beyond the starter city aliases.
+- Add traveller, cabin, currency and flexible-date controls.
+- Add versioned migration for future local workspace schemas.
+- Add official supplier integrations only after product, legal and support ownership is decided.
+- Keep deeper Hushh integration paused until this standalone architecture is validated.
