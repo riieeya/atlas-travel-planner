@@ -25,6 +25,11 @@ class SearchRequest(BaseModel):
     destination: str = Field(min_length=2, max_length=80)
     departure_date: date
     duration_days: int = Field(ge=1, le=30)
+    adults: int = Field(default=1, ge=1, le=9)
+    children: int = Field(default=0, ge=0, le=8)
+    travel_class: Literal[1, 2, 3, 4] = 1
+    stops: Literal[0, 1, 2, 3] = 0
+    currency: Literal["USD", "INR", "EUR", "GBP", "AED", "SGD", "JPY"] = "USD"
     @field_validator("origin", "destination")
     @classmethod
     def normalise_place(cls, value: str) -> str:
@@ -61,7 +66,7 @@ def destination_brief(destination: str) -> dict[str, str]:
 def _results(body: SearchRequest, flights: list[dict[str, Any]], hotels: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "kind":"travel_results","schema_version":"travel_results.v2",
-        "trip":{"title":f"{body.duration_days}-night trip to {body.destination}","origin":body.origin,"destination":body.destination,"date_label":body.departure_date.isoformat(),"duration_days":body.duration_days},
+        "trip":{"title":f"{body.duration_days}-night trip to {body.destination}","origin":body.origin,"destination":body.destination,"date_label":body.departure_date.isoformat(),"duration_days":body.duration_days,"adults":body.adults,"children":body.children,"travel_class":body.travel_class,"stops":body.stops,"currency":body.currency},
         "destination":destination_brief(body.destination),
         "timeline":[{"title":"Discover","detail":"Live flight and stay snapshots"},{"title":"Compare","detail":"Shortlist the strongest options"},{"title":"Organize","detail":"Build the days around your choices"},{"title":"Prepare","detail":"Budget, packing and transfers"}],
         "option_groups":[{"id":"flights","title":"Outbound flights","subtitle":"Current Google Flights snapshots","options":flights},{"id":"stays","title":"Stays","subtitle":"Current Google Hotels snapshots","options":hotels}],
@@ -82,7 +87,7 @@ async def search(body: SearchRequest, request: Request) -> dict[str, Any]:
     _rate_limit(request)
     if body.departure_date < date.today(): raise HTTPException(422, "Choose a future departure date.")
     try:
-        flights, hotels = await SerpApiTravelClient().search(origin=body.origin,destination=body.destination,departure_date=body.departure_date,duration_days=body.duration_days)
+        flights, hotels = await SerpApiTravelClient().search(origin=body.origin,destination=body.destination,departure_date=body.departure_date,duration_days=body.duration_days,adults=body.adults,children=body.children,travel_class=body.travel_class,stops=body.stops,currency=body.currency)
     except SerpApiTravelError as exc:
         raise HTTPException(503, str(exc)) from exc
     return _results(body, flights, hotels)
