@@ -45,6 +45,15 @@ The comparison workspace also includes:
 - Price, duration and stop sorting plus focused comparison filters.
 - Loading skeletons and actionable no-results guidance.
 
+The itinerary workspace uses the v4 local schema and includes:
+
+- Timed activities with duration, category and travel-before buffers.
+- Automatic overlap and insufficient-transfer warnings.
+- Drag-and-drop movement between days.
+- Keyboard/touch-friendly earlier and later controls.
+- Destination-aware starter suggestions for supported cities.
+- Automatic migration of older string-only itinerary items.
+
 ## Run locally
 
 1. Create and activate a virtual environment:
