@@ -25,3 +25,9 @@ def test_return_date_must_follow_departure():
     departure=date.today()+timedelta(days=30)
     r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":departure.isoformat(),"return_date":departure.isoformat(),"duration_days":3,"trip_type":"round_trip"})
     assert r.status_code==422
+def test_airport_autocomplete_returns_codes():
+    r=client.get("/api/airports",params={"q":"mumb"})
+    assert r.status_code==200
+    assert r.json()["airports"][0]["code"]=="BOM"
+def test_airport_autocomplete_rejects_short_queries():
+    assert client.get("/api/airports",params={"q":"m"}).status_code==422
