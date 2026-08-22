@@ -36,6 +36,15 @@ One-way and round-trip searches are supported. Round trips require a return date
 after departure. Flexible-date mode returns a nearby-date window for comparison;
 Atlas does not silently multiply provider requests across every nearby date.
 
+The comparison workspace also includes:
+
+- Airport autocomplete backed by a local catalogue of major Indian and global cities.
+- Recent-search reuse and persistent filters.
+- User-initiated nearby-date searches with remembered lowest observed fares.
+- Flight layover, duration and estimated-emissions details when supplied by SerpApi.
+- Price, duration and stop sorting plus focused comparison filters.
+- Loading skeletons and actionable no-results guidance.
+
 ## Run locally
 
 1. Create and activate a virtual environment:
@@ -75,8 +84,8 @@ GitHub Actions runs tests and Python compilation on pushes and pull requests.
 
 ## Next product work
 
-- Expand airport resolution beyond the starter city aliases.
-- Add fare-calendar comparison for explicitly selected nearby dates.
+- Replace the starter airport catalogue with a maintained aviation dataset.
+- Add a bounded batch fare-calendar endpoint if provider quota makes it practical.
 - Add versioned migration for future local workspace schemas.
 - Add official supplier integrations only after product, legal and support ownership is decided.
 - Keep deeper Hushh integration paused until this standalone architecture is validated.
