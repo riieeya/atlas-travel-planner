@@ -75,11 +75,12 @@ class SerpApiTravelClient:
     async def search(
         self, *, origin: str, destination: str, departure_date: date, duration_days: int,
         adults: int = 1, children: int = 0, travel_class: int = 1,
-        stops: int = 0, currency: str = "USD",
+        stops: int = 0, currency: str = "USD", trip_type: str = "one_way",
+        return_date: date | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         departure = airport_id(origin)
         arrival = airport_id(destination)
-        cache_key = f"{departure}:{arrival}:{departure_date}:{duration_days}:{adults}:{children}:{travel_class}:{stops}:{currency}"
+        cache_key = f"{departure}:{arrival}:{departure_date}:{return_date}:{duration_days}:{adults}:{children}:{travel_class}:{stops}:{currency}"
         cached = self._cache.get(cache_key)
         if cached and cached.expires_at > time.monotonic():
             return cached.value
@@ -89,7 +90,9 @@ class SerpApiTravelClient:
             self._get({
                 "engine": "google_flights", "departure_id": departure,
                 "arrival_id": arrival, "outbound_date": departure_date.isoformat(),
-                "type": "2", "currency": currency, "hl": "en", "adults": adults,
+                "type": "1" if trip_type == "round_trip" else "2",
+                **({"return_date": return_date.isoformat()} if return_date else {}),
+                "currency": currency, "hl": "en", "adults": adults,
                 "children": children, "travel_class": travel_class, "stops": stops,
             }),
             self._get({
