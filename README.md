@@ -32,6 +32,10 @@ Search controls currently include adults, children, cabin class, maximum stops
 and display currency. These values are validated on the server before being sent
 to SerpApi.
 
+One-way and round-trip searches are supported. Round trips require a return date
+after departure. Flexible-date mode returns a nearby-date window for comparison;
+Atlas does not silently multiply provider requests across every nearby date.
+
 ## Run locally
 
 1. Create and activate a virtual environment:
@@ -72,7 +76,7 @@ GitHub Actions runs tests and Python compilation on pushes and pull requests.
 ## Next product work
 
 - Expand airport resolution beyond the starter city aliases.
-- Add round-trip and flexible-date discovery.
+- Add fare-calendar comparison for explicitly selected nearby dates.
 - Add versioned migration for future local workspace schemas.
 - Add official supplier integrations only after product, legal and support ownership is decided.
 - Keep deeper Hushh integration paused until this standalone architecture is validated.
