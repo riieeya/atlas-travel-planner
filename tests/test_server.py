@@ -18,3 +18,10 @@ def test_invalid_passenger_count_is_rejected_before_provider_call():
 def test_invalid_currency_is_rejected_before_provider_call():
     r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":(date.today()+timedelta(days=30)).isoformat(),"duration_days":3,"currency":"XYZ"})
     assert r.status_code==422
+def test_round_trip_requires_return_date():
+    r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":(date.today()+timedelta(days=30)).isoformat(),"duration_days":3,"trip_type":"round_trip"})
+    assert r.status_code==422
+def test_return_date_must_follow_departure():
+    departure=date.today()+timedelta(days=30)
+    r=client.post("/api/search",json={"origin":"BOM","destination":"DXB","departure_date":departure.isoformat(),"return_date":departure.isoformat(),"duration_days":3,"trip_type":"round_trip"})
+    assert r.status_code==422
