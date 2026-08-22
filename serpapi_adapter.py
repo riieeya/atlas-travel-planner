@@ -36,9 +36,9 @@ def airport_id(value: str) -> str:
     )
 
 
-def _price(value: Any) -> str:
+def _price(value: Any, currency: str = "USD") -> str:
     if isinstance(value, (int, float)):
-        return f"USD {value:,.0f}"
+        return f"{currency} {value:,.0f}"
     return str(value or "Price unavailable")
 
 
@@ -73,11 +73,13 @@ class SerpApiTravelClient:
         return payload
 
     async def search(
-        self, *, origin: str, destination: str, departure_date: date, duration_days: int
+        self, *, origin: str, destination: str, departure_date: date, duration_days: int,
+        adults: int = 1, children: int = 0, travel_class: int = 1,
+        stops: int = 0, currency: str = "USD",
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         departure = airport_id(origin)
         arrival = airport_id(destination)
-        cache_key = f"{departure}:{arrival}:{departure_date}:{duration_days}"
+        cache_key = f"{departure}:{arrival}:{departure_date}:{duration_days}:{adults}:{children}:{travel_class}:{stops}:{currency}"
         cached = self._cache.get(cache_key)
         if cached and cached.expires_at > time.monotonic():
             return cached.value
@@ -87,13 +89,14 @@ class SerpApiTravelClient:
             self._get({
                 "engine": "google_flights", "departure_id": departure,
                 "arrival_id": arrival, "outbound_date": departure_date.isoformat(),
-                "type": "2", "currency": "USD", "hl": "en",
+                "type": "2", "currency": currency, "hl": "en", "adults": adults,
+                "children": children, "travel_class": travel_class, "stops": stops,
             }),
             self._get({
                 "engine": "google_hotels", "q": destination,
                 "check_in_date": departure_date.isoformat(),
-                "check_out_date": checkout.isoformat(), "currency": "USD",
-                "adults": "2", "hl": "en",
+                "check_out_date": checkout.isoformat(), "currency": currency,
+                "adults": adults, "children": children, "hl": "en",
             }),
         )
         value = (self._flights(flights_payload), self._hotels(hotels_payload))
@@ -109,6 +112,7 @@ class SerpApiTravelClient:
     @staticmethod
     def _flights(payload: dict[str, Any]) -> list[dict[str, Any]]:
         groups = [*payload.get("best_flights", []), *payload.get("other_flights", [])][:8]
+        currency = payload.get("search_parameters", {}).get("currency", "USD")
         results: list[dict[str, Any]] = []
         for index, group in enumerate(groups):
             legs = group.get("flights") or []
@@ -119,7 +123,7 @@ class SerpApiTravelClient:
                 "kind": "flight",
                 "label": airline,
                 "detail": f"{first.get('departure_airport', {}).get('time', 'Time TBA')} → {last.get('arrival_airport', {}).get('time', 'Time TBA')} · {len(legs)-1 if legs else 0} stop(s)",
-                "price": _price(group.get("price")),
+                "price": _price(group.get("price"), currency),
                 "duration": f"{group.get('total_duration', '—')} min",
                 "image": first.get("airline_logo"),
             })
@@ -128,6 +132,7 @@ class SerpApiTravelClient:
     @staticmethod
     def _hotels(payload: dict[str, Any]) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
+        currency = payload.get("search_parameters", {}).get("currency", "USD")
         for index, item in enumerate((payload.get("properties") or [])[:8]):
             rate = item.get("rate_per_night") or {}
             image = next(iter(item.get("images") or []), {}).get("thumbnail")
@@ -136,7 +141,7 @@ class SerpApiTravelClient:
                 "kind": "hotel",
                 "label": item.get("name") or "Stay option",
                 "detail": f"{item.get('overall_rating', 'New')} rating · {item.get('type', 'Property')}",
-                "price": rate.get("lowest") or _price(rate.get("extracted_lowest")),
+                "price": rate.get("lowest") or _price(rate.get("extracted_lowest"), currency),
                 "duration": f"{item.get('reviews', 0)} reviews",
                 "image": image,
             })
