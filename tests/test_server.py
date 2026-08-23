@@ -31,3 +31,10 @@ def test_airport_autocomplete_returns_codes():
     assert r.json()["airports"][0]["code"]=="BOM"
 def test_airport_autocomplete_rejects_short_queries():
     assert client.get("/api/airports",params={"q":"m"}).status_code==422
+def test_route_estimate_rejects_unsupported_mode():
+    r=client.post("/api/routes",json={"origin":"Mumbai airport","destination":"Bandra","travel_mode":"FLY"})
+    assert r.status_code==422
+def test_route_estimate_reports_missing_configuration_without_calling_google(monkeypatch):
+    monkeypatch.delenv("GOOGLE_MAPS_ROUTES_API_KEY", raising=False)
+    r=client.post("/api/routes",json={"origin":"Mumbai airport","destination":"Bandra"})
+    assert r.status_code==503 and "GOOGLE_MAPS_ROUTES_API_KEY" in r.json()["detail"]

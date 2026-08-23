@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from serpapi_adapter import AIRPORT_ALIASES, SerpApiTravelClient, SerpApiTravelError
+from google_routes import GoogleRoutesClient, GoogleRoutesError
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env", override=False)
@@ -56,6 +57,19 @@ class HandoffRequest(BaseModel):
     destination: str = Field(min_length=2, max_length=80)
     departure_date: date
     confirmed: Literal[True]
+
+class RouteEstimateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    origin: str = Field(min_length=3, max_length=200)
+    destination: str = Field(min_length=3, max_length=200)
+    travel_mode: Literal["DRIVE", "WALK", "BICYCLE", "TWO_WHEELER"] = "DRIVE"
+    @field_validator("origin", "destination")
+    @classmethod
+    def normalise_location(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("location must not be blank")
+        return value
 
 def _rate_limit(request: Request) -> None:
     key = request.client.host if request.client else "unknown"
@@ -113,6 +127,15 @@ async def airports(q: str = Query(min_length=2, max_length=50)) -> dict[str, lis
     ]
     unique = list({item["code"]: item for item in matches}.values())
     return {"airports": unique[:8]}
+@app.post("/api/routes")
+async def route_estimate(body: RouteEstimateRequest, request: Request) -> dict[str, Any]:
+    _rate_limit(request)
+    try:
+        return await GoogleRoutesClient().estimate(
+            origin=body.origin, destination=body.destination, travel_mode=body.travel_mode,
+        )
+    except GoogleRoutesError as exc:
+        raise HTTPException(503, str(exc)) from exc
 @app.post("/api/search")
 async def search(body: SearchRequest, request: Request) -> dict[str, Any]:
     _rate_limit(request)

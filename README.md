@@ -79,6 +79,7 @@ Travel planning is usually spread across search tabs, notes, spreadsheets and sc
 - Packing checklist
 - Trip-readiness percentage
 - Local `.ics` calendar export for timed itinerary activities
+- Google Routes API estimates for user-requested ground transfers (when configured)
 - Shortlist, itinerary, budget and packing persistence
 - Responsive desktop, tablet and mobile layouts
 
@@ -155,7 +156,8 @@ macOS or Linux:
 
 Add your private SerpApi key to `.env`:
 
-    SERPAPI_API_KEY=your_real_key_here
+SERPAPI_API_KEY=your_real_key_here
+GOOGLE_MAPS_ROUTES_API_KEY=your_google_routes_key_here
 
 Never commit the real `.env` file.
 
@@ -176,8 +178,10 @@ API documentation is available locally at:
 | Variable | Purpose | Default |
 |---|---|---|
 | `SERPAPI_API_KEY` | Private SerpApi credential required for live searches | None |
+| `GOOGLE_MAPS_ROUTES_API_KEY` | Server-only Google Routes API key; enable Routes API and restrict it | None |
 | `ATLAS_SEARCH_CACHE_SECONDS` | Search-cache duration | `600` |
 | `ATLAS_SEARCHES_PER_MINUTE` | Per-client quota protection | `15` |
+| `ATLAS_ROUTES_CACHE_SECONDS` | Route-estimate cache duration | `300` |
 
 ## Tests
 
@@ -207,6 +211,7 @@ GitHub Actions installs the declared dependencies and runs tests and Python comp
 - Search calls use timeouts, caching and rate limiting.
 - Provider handoffs require explicit confirmation.
 - Atlas never accepts an arbitrary provider URL from the browser.
+- Google Routes requests are explicit, rate-limited, cached and use a server-only key.
 - Search results are snapshots, not reservations.
 
 ## Important limitations
