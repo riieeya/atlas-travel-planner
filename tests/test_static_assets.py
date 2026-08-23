@@ -16,3 +16,10 @@ def test_itinerary_script_contains_v4_migration_and_validation():
     assert "validateDay" in script
     assert "moveDragged" in script
     assert "suggestionCatalog" in script
+
+def test_workspace_offers_local_calendar_export():
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'id="export-calendar"' in html
+    assert "function exportCalendar" in script
+    assert "BEGIN:VCALENDAR" in script

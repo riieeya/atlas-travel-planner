@@ -78,6 +78,7 @@ Travel planning is usually spread across search tabs, notes, spreadsheets and sc
 - Automatic planned-spend total
 - Packing checklist
 - Trip-readiness percentage
+- Local `.ics` calendar export for timed itinerary activities
 - Shortlist, itinerary, budget and packing persistence
 - Responsive desktop, tablet and mobile layouts
 
